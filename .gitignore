@@ -1,0 +1,14 @@
+# Excluir todo
+*
+
+# Excepto archivos .pddl y .txt
+!*.pddl
+!*.txt
+!*.gitignore
+!*.tex
+!Ejercicio1
+!Doc
+!Ejercicio2
+!Ejercicio3
+!Ejercicio3/result
+

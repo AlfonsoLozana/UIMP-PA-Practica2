@@ -1,0 +1,758 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{pgfplots}
+\usepackage{fancyvrb}
+\usepackage{hyperref} 
+\usepackage{booktabs}
+\pgfplotsset{compat=1.17}
+\usepackage{filecontents}
+\pgfplotsset{compat=1.17}
+
+\begin{filecontents*}{data.csv}
+    Renovable,Optimización,Energía,Tiempo
+    Sí,Tiempo,36,234
+    Sí,Energía,30,404
+    No,Energía,30,218
+    No,Tiempo,54,119
+    Sí,Tiempo,39,271
+    Sí,Energía,24,375
+    No,Energía,29,184
+    No,Tiempo,45,116
+    Sí,Tiempo,38,309
+    Sí,Energía,30,376
+    No,Energía,35,226
+    No,Tiempo,47,116
+    Sí,Tiempo,36,289
+    Sí,Energía,29,470
+    No,Energía,36,206
+    No,Tiempo,57,123
+    Sí,Tiempo,57,373
+    Sí,Energía,32,366
+    No,Energía,38,158
+    No,Tiempo,41,136
+\end{filecontents*}
+
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    {\bfseries\LARGE Universidad Internacional Menéndez Pelayo  \par}
+    \vspace{1cm}
+    {\scshape\Large Máster en Investigación en Inteligencia Artificial    \par}
+    \vspace{3cm}
+    {\scshape\Huge Planificación automática Práctica 2 \par}
+    {\Large Dominio Ascensores  \par}
+    \vspace{3cm}
+    {\itshape\Large \href{https://github.com/AlfonsoLozana/UIMP-PA-Practica2}{\textcolor{blue}{AlfonsoLozana/UIMP-PA-Practica2}} \par} % Cambia el color y el estilo aquí
+    \vfill
+    {\Large Autor: \par}
+    {\Large Alfonso Lozana Cueto \par}
+    \vfill
+\end{titlepage}
+
+\section{Introducción}
+En este documento se describe el trabajo a realizar para la práctica 2 de la asignatura de Planificación Automática. Todo el código al que se hace referencia está disponible en el enlace de la portada.
+
+Este documento incluye una guía detallada que explica el código desarrollado, proporcionando una comprensión más profunda del proceso de desarrollo.
+
+\section{Dominio seleccionado}
+El dominio del problema seleccionado se define de la siguiente manera:
+
+\begin{quotation}
+"Se dispone de un edificio de 13 plantas (numeradas del 0 al 12) dividido en tres bloques. El bloque 1 abarca de la planta 0 a la planta 4; el bloque 2, de la planta 4 a la planta 8; y el bloque 3, de la planta 8 a la planta 12. Los bloques 1 y 2 comparten la planta 4, y los bloques 2 y 3 comparten la planta 8. En el edificio hay un ascensor rápido que solo para en las plantas pares (0, 2, 4, 6, 8, 10, 12). Además, cada bloque dispone de uno o dos ascensores lentos, tal como se muestra en la figura, que solo pueden moverse entre las plantas del bloque correspondiente.
+
+El ascensor rápido tiene capacidad para tres personas, y los ascensores lentos tienen capacidad para dos personas."
+\end{quotation}
+
+\section{Ejercicio 1}
+
+\subsection{Definición de dominio}
+\subsubsection{Tipos}
+\begin{verbatim}
+(:types
+        planta ascensor pasajero capacidad - object
+        rapido lento - ascensor
+)
+\end{verbatim}
+
+Lo primero que definimos son los tipos. En este caso contamos con seis tipos:
+\begin{itemize}
+    \item \textbf{Planta}: representa cada una de las plantas del edificio.
+    \item \textbf{Pasajero}: representa a cada uno de los pasajeros del problema.
+    \item \textbf{Capacidad}: representa cada una de las capacidades que puede tener un ascensor.
+    \item \textbf{Ascensor}: representa los ascensores.
+    \item \textbf{Rápido}: subtipo de ascensor, representa los ascensores rápidos.
+    \item \textbf{Lento}: subtipo de ascensor, representa los ascensores lentos.
+\end{itemize}
+
+\subsubsection{Predicados}
+\begin{verbatim}
+(:predicates
+        (en_planta ?x - (either pasajero ascensor) ?p - planta)
+        (en_ascensor ?p - pasajero ?a - ascensor)
+        (puede_ir_a ?a - ascensor ?p - planta)
+        (capacidad_ascensor ?a - ascensor ?c - capacidad)
+        (predecesor_capacidad ?c1 - capacidad ?c2 - capacidad)
+)
+\end{verbatim}
+
+\begin{itemize}
+    \item \textbf{en\_planta}: indica en qué planta se encuentra un ascensor o un pasajero.
+    \item \textbf{en\_ascensor}: indica si un pasajero está dentro de un ascensor y en qué ascensor concreto se encuentra.
+    \item \textbf{puede\_ir\_a}: indica a qué plantas puede acceder un determinado ascensor.
+    \item \textbf{capacidad\_ascensor}: indica la capacidad actual de un ascensor concreto.
+    \item \textbf{predecesor\_capacidad}: indica las relaciones entre las diferentes capacidades. Sirve para controlar la capacidad de un ascensor de manera que si un ascensor tiene una capacidad de 2, al subir o bajar un pasajero, solo se pueda cambiar la capacidad a 1 o 3, pero nunca a cero. Esto ayuda a gestionar la capacidad sin utilizar
+     \texttt{:fluents}, que están disponibles a partir de PDDL 2.1.
+\end{itemize}
+
+
+\subsection{Acciones}
+Las acciones definidas en el dominio son las siguientes: 
+\subsubsection{MoverAscensor}
+\begin{verbatim}
+(:action MoverAscensor
+    :parameters (?a - ascensor ?p_origen - planta ?p_destino - planta)
+    :precondition (and
+        (puede_ir_a ?a ?p_destino)
+        (not(= ?p_origen ?p_destino))
+        (en_planta ?a ?p_origen)
+    )
+    :effect (and
+        (en_planta ?a ?p_destino)
+        (not (en_planta ?a ?p_origen))
+    )
+)
+\end{verbatim}
+
+\subsubsection{SubirPasajero}
+\begin{verbatim}
+(:action SubirPasajero
+    :parameters (?p - pasajero ?a - ascensor ?planta_actual - planta 
+    ?capacidad_actual ?final_capacidad - capacidad)
+    :precondition (and
+        (en_planta ?p ?planta_actual)
+        (en_planta ?a ?planta_actual)
+        (not(capacidad_ascensor ?a capacidad0))
+        (capacidad_ascensor ?a ?capacidad_actual)
+        (predecesor_capacidad ?final_capacidad ?capacidad_actual)
+    )
+    :effect (and
+        (en_ascensor ?p ?a)
+        (not (en_planta ?p ?planta_actual))
+        (not(capacidad_ascensor ?a ?capacidad_actual))
+        (capacidad_ascensor ?a ?final_capacidad)
+    )
+)
+\end{verbatim}
+
+\subsubsection{BajarPasajero}
+\begin{verbatim}
+(:action BajarPasajero
+    :parameters (?p - pasajero ?a - ascensor ?p_destino - planta 
+    ?capacidad_actual ?final_capacidad - capacidad)
+    :precondition (and
+        (en_ascensor ?p ?a)
+        (en_planta ?a ?p_destino)
+        (capacidad_ascensor ?a ?capacidad_actual)
+        (predecesor_capacidad ?capacidad_actual ?final_capacidad)
+    )
+    :effect (and
+        (en_planta ?p ?p_destino)
+        (not (en_ascensor ?p ?a))
+        (not(capacidad_ascensor ?a ?capacidad_actual))
+        (capacidad_ascensor ?a ?final_capacidad)
+    )
+)
+\end{verbatim}
+
+\subsection{Definición del problema}
+Para el dominio descrito se crearon un total de cinco problemas, todos los cuales fueron resueltos satisfactoriamente utilizando todos los planificadores.
+
+\subsubsection{\texttt{p1.pddl}}
+\begin{itemize}
+    \item Situación inicial:
+    \begin{enumerate}
+        \item Pasajero 0 está en la planta 2.
+        \item Pasajero 1 está en la planta 4.
+        \item Pasajero 2 está en la planta 1.
+        \item Pasajero 3 está en la planta 8.
+        \item Pasajero 4 está en la planta 1.
+    \end{enumerate}
+    \item Objetivo:
+    \begin{enumerate}
+        \item Pasajero 0 debe llegar a la planta 3.
+        \item Pasajero 1 debe llegar a la planta 11.
+        \item Pasajero 2 debe llegar a la planta 12.
+        \item Pasajero 3 debe llegar a la planta 1.
+        \item Pasajero 4 debe llegar a la planta 9.
+    \end{enumerate}
+\end{itemize}
+
+\begin{verbatim}
+(define (problem ascensor-problema-1)
+    (:domain domain-ascensor)
+    (:objects
+        ascensor-rapido - rapido
+        ascensor-lento-b1 ascensor-lento-b2-1 
+        ascensor-lento-b2-2 ascensor-lento-b3 - lento
+        pasajero0 pasajero1 pasajero2 pasajero3 pasajero4 - pasajero
+        planta0 planta1 planta2 planta3 planta4 planta5 
+        planta6 planta7 planta8 planta9 planta10 planta11 planta12 - planta
+        capacidad0 capacidad1 capacidad2 capacidad3 - capacidad
+    )
+    (:init
+        ; Posiciones iniciales de ascensores
+        (en_planta ascensor-rapido planta0)
+        (en_planta ascensor-lento-b1 planta0)
+        (en_planta ascensor-lento-b2-1 planta4)
+        (en_planta ascensor-lento-b2-2 planta4)
+        (en_planta ascensor-lento-b3 planta8)
+
+        ; Posiciones iniciales de los pasajeros
+        (en_planta pasajero0 planta2)
+        (en_planta pasajero1 planta4)
+        (en_planta pasajero2 planta1)
+        (en_planta pasajero3 planta8)
+        (en_planta pasajero4 planta1)
+
+        ; Capacidad de los ascensores
+        (capacidad_ascensor ascensor-rapido capacidad3)
+        (capacidad_ascensor ascensor-lento-b1 capacidad2)
+        (capacidad_ascensor ascensor-lento-b2-1 capacidad2)
+        (capacidad_ascensor ascensor-lento-b2-2 capacidad2)
+        (capacidad_ascensor ascensor-lento-b3 capacidad2)
+
+        ; Orden de las capacidades
+        (predecesor_capacidad capacidad0 capacidad1)
+        (predecesor_capacidad capacidad1 capacidad2)
+        (predecesor_capacidad capacidad2 capacidad3)
+
+        ; Plantas accesibles desde cada ascensor
+        (puede_ir_a ascensor-rapido planta0)
+        (puede_ir_a ascensor-rapido planta2)
+        (puede_ir_a ascensor-rapido planta4)
+        (puede_ir_a ascensor-rapido planta6)
+        (puede_ir_a ascensor-rapido planta8)
+        (puede_ir_a ascensor-rapido planta10)
+        (puede_ir_a ascensor-rapido planta12)
+
+        (puede_ir_a ascensor-lento-b1 planta0)
+        (puede_ir_a ascensor-lento-b1 planta1)
+        (puede_ir_a ascensor-lento-b1 planta2)
+        (puede_ir_a ascensor-lento-b1 planta3)
+        (puede_ir_a ascensor-lento-b1 planta4)
+
+        (puede_ir_a ascensor-lento-b2-1 planta4)
+        (puede_ir_a ascensor-lento-b2-1 planta5)
+        (puede_ir_a ascensor-lento-b2-1 planta6)
+        (puede_ir_a ascensor-lento-b2-1 planta7)
+        (puede_ir_a ascensor-lento-b2-1 planta8)
+
+        (puede_ir_a ascensor-lento-b2-2 planta4)
+        (puede_ir_a ascensor-lento-b2-2 planta5)
+        (puede_ir_a ascensor-lento-b2-2 planta6)
+        (puede_ir_a ascensor-lento-b2-2 planta7)
+        (puede_ir_a ascensor-lento-b2-2 planta8)
+
+        (puede_ir_a ascensor-lento-b3 planta8)
+        (puede_ir_a ascensor-lento-b3 planta9)
+        (puede_ir_a ascensor-lento-b3 planta10)
+        (puede_ir_a ascensor-lento-b3 planta11)
+        (puede_ir_a ascensor-lento-b3 planta12)
+    )
+    (:goal
+        (and
+            ; Objetivos de los pasajeros
+            (en_planta pasajero0 planta3)
+            (en_planta pasajero1 planta11)
+            (en_planta pasajero2 planta12)
+            (en_planta pasajero3 planta1)
+            (en_planta pasajero4 planta9)
+        )
+    )
+)
+\end{verbatim}
+
+\subsubsection{\texttt{p2.pddl}}
+Se añaden dos nuevos pasajeros y se modifican las plantas en las que están los pasajeros, así como las plantas destino:
+
+\begin{itemize}
+    \item Situación inicial (solo modificaciones):
+    \begin{itemize}
+        \item Pasajero 0 en planta 1
+        \item Pasajero 1 en planta 2
+        \item Pasajero 2 en planta 3
+        \item Pasajero 3 en planta 4
+        \item Pasajero 4 en planta 5
+        \item Pasajero 5 en planta 6
+        \item Pasajero 6 en planta 7
+    \end{itemize}
+    \item Objetivos:
+    \begin{itemize}
+        \item Pasajero 0 a planta 6
+        \item Pasajero 1 a planta 7
+        \item Pasajero 2 a planta 8
+        \item Pasajero 3 a planta 9
+        \item Pasajero 4 a planta 10
+        \item Pasajero 5 a planta 11
+        \item Pasajero 6 a planta 12
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{p3.pddl}}
+Partiendo del problema anterior, se modificó la posición inicial de todos los pasajeros. Ahora todos parten de la planta 0 y van a la planta 12.
+
+\subsubsection{\texttt{p4.pddl}}
+Partiendo del problema \texttt{p2.pddl}, se añade un nuevo ascensor rápido que puede ir a las plantas 0, 3, 6, 9 y 12.
+
+\subsubsection{\texttt{p5.pddl}}
+Modificación del problema anterior cambiando las capacidades de los ascensores. Ahora, los ascensores rápidos tienen capacidad de 1 y los lentos tienen capacidad de 3.
+
+\section{Ejercicio 2}
+
+\subsection{Definición de dominio}
+En el Ejercicio 2 se amplía el dominio del Ejercicio 1 añadiendo duración 
+a las acciones:
+\begin{itemize}
+    \item \textbf{Ascensores lentos:}
+    \begin{itemize}
+        \item Subir/bajar una planta: 12 unidades de tiempo
+        \item Subir/bajar dos plantas: 20 u.t.
+        \item Subir/bajar tres plantas: 28 u.t.
+        \item Subir/bajar cuatro plantas: 36 u.t.
+    \end{itemize}
+    \item \textbf{Ascensor rápido:}
+    \begin{itemize}
+        \item Subir dos plantas: 11 u.t.
+        \item Subir cuatro plantas: 13 u.t.
+        \item Subir seis plantas: 15 u.t.
+        \item Subir ocho plantas: 17 u.t.
+        \item Subir 10 plantas: 19 u.t.
+        \item Subir 12 plantas: 21 u.t.
+        \item Bajar dos plantas: 10 u.t.
+        \item Bajar cuatro plantas: 12 u.t.
+        \item Bajar seis plantas: 14 u.t.
+        \item Bajar ocho plantas: 16 u.t.
+        \item Bajar 10 plantas: 18 u.t.
+        \item Bajar 12 plantas: 20 u.t.
+        \item Subir/bajar del ascensor: 2 u.t.
+    \end{itemize}
+    \item \textbf{Personas:}
+    \begin{itemize}
+        \item Subir/bajar del ascensor: 2 u.t.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Modificaciones en el dominio}
+
+La primera modificación es la adición de \textbf{:fluents} a los \emph{requirements}. Por otro lado, en cuanto a los \emph{types}, no hay ninguna modificación.
+
+Donde vemos el primer gran cambio es en las \emph{functions}, donde se añaden dos nuevas funciones:
+
+\begin{verbatim}
+(:functions
+    (plazas_libres ?a - ascensor)
+    (distancia ?planta_actual - planta ?planta_destino - planta) ; Modificación
+)
+\end{verbatim}
+
+\begin{itemize}
+    \item \texttt{plazas\_libres}: se utiliza para llevar la cuenta de las plazas libres de cada ascensor. Esta es una modificación realizada tras la inclusión de ``:fluents'' para simplificar el código del dominio uno, dado que antes, para llevar la cuenta de las plazas disponibles, se utilizaba otra lógica.
+    
+    \item \texttt{distancia}: indica la distancia entre una planta y otra. Cabe destacar que solo se utiliza la distancia de abajo a arriba, en vez de añadir dos realizaciones. Ejemplo: existe distancia de 1 a 12, pero no de 12 a 1. No obstante, esto se entenderá mejor cuando veamos las modificaciones en los métodos y el modelado del problema.
+\end{itemize}
+
+En cuanto a los predicados, se han eliminado:
+
+\begin{verbatim}
+(capacidad_ascensor ?a - ascensor ?c - capacidad)
+(predecesor_capacidad ?c1 - capacidad ?c2 - capacidad)
+\end{verbatim}
+
+Ya que ahora no son necesarios porque la cuenta de la ocupación de los ascensores se lleva utilizando la función \texttt{plazas\_libres}.
+
+
+\subsubsection{Modificaciones en \texttt{SubirPasajero} y \texttt{BajarPasajero}}
+En ambos casos se añadio \texttt{:duration (= ?duration 2)} después de la declaración de parámetros, indicando que subir/bajar pasajeros tiene un coste en cuanto a tiempo de 2 unidades de tiempo.
+
+
+\begin{verbatim}
+(:durative-action SubirPasajero
+    :parameters (?p - pasajero ?a - ascensor ?planta_actual - planta)
+    :duration (= ?duration 2) ; Modificación
+    :condition (and
+        (at start (en_planta ?p ?planta_actual))
+        (at start (en_planta ?a ?planta_actual))
+        (at start (> (plazas_libres ?a) 0))
+    )
+    :effect (and
+        (at end (en_ascensor ?p ?a))
+        (at start (not (en_planta ?p ?planta_actual)))
+        (at start (decrease (plazas_libres ?a) 1))
+    )
+)
+(:durative-action BajarPasajero
+    :parameters (?p - pasajero ?a - ascensor ?p_destino - planta)
+    :duration (= ?duration 2) ; Modificación
+    :condition (and
+        (at start (en_ascensor ?p ?a))
+        (at start (en_planta ?a ?p_destino))
+    )
+    :effect (and
+        (at end (en_planta ?p ?p_destino))
+        (at start (not (en_ascensor ?p ?a)))
+        (at end (increase (plazas_libres ?a) 1))
+    )
+)
+\end{verbatim}
+
+\subsubsection{Modificaciones en \texttt{MoverAscensor}}
+
+Las modificaciones más importantes se llevaron a cabo en la acción \textbf{MoverAscensor}, ya que esta acción se dividió en dos acciones: \textbf{MoverAscensorLento} y \textbf{MoverAscensorRapido}. Esta decisión se tomó porque cada ascensor tiene unos tiempos distintos para las diferentes acciones, por lo que dividir el método simplificaba la legibilidad del cálculo de los tiempos.
+
+Con el enunciado, podemos obtener una fórmula para calcular los tiempos que tarda un ascensor en subir \(x\) plantas:
+
+\begin{itemize}
+    \item Fórmula ascensor lento (subir/bajar): \(t(p) = 4 + p \times 8\)
+    \item Fórmula ascensor rápido (subir): \(t(p) = 9 + p\)
+    \item Fórmula ascensor rápido (bajar): \(t(p) = 8 + p\)
+\end{itemize}
+
+Donde \(t\) representa las unidades de tiempo y \(p\) el número de plantas subidas o bajadas.
+\\\\
+El código resultante es el siguiente:
+
+\begin{verbatim}
+(:durative-action MoverAscensorLento
+    :parameters (?a - lento ?p_origen - planta ?p_destino - planta)
+    :duration (= ?duration
+        (+4
+            (* 8
+                (+ (distancia ?p_origen ?p_destino) (distancia ?p_destino ?p_origen)))))
+    :condition (and
+        (at start (puede_ir_a ?a ?p_destino))
+        (at start (not (= ?p_origen ?p_destino)))
+        (at start (en_planta ?a ?p_origen))
+    )
+    :effect (and
+        (at end (en_planta ?a ?p_destino))
+        (at start (not (en_planta ?a ?p_origen)))
+    )
+)
+
+(:durative-action MoverAscensorRapido
+    :parameters (?a - rapido ?p_origen - planta ?p_destino - planta)
+    :duration (= ?duration
+        (+
+            (/
+                (+ 17
+                    ( * 1
+                        ( /
+                            (-
+                                (distancia ?p_origen ?p_destino)
+                                (distancia ?p_destino ?p_origen))
+                            (+
+                                (distancia ?p_origen ?p_destino)
+                                (distancia ?p_destino ?p_origen)
+                            )
+                        )
+                    )
+                ) 
+                2
+            )
+            (+
+                (distancia ?p_origen ?p_destino)
+                (distancia ?p_destino ?p_origen)
+            )
+        )
+    )
+    :condition (and
+        (at start (puede_ir_a ?a ?p_destino))
+        (at start (not (= ?p_origen ?p_destino)))
+        (at start (en_planta ?a ?p_origen))
+    )
+    :effect (and
+        (at end (en_planta ?a ?p_destino))
+        (at start (not (en_planta ?a ?p_origen)))
+    )
+)
+\end{verbatim}
+
+Las modificaciones en ambas acciones con respecto a la acción del ejercicio 1 radican en cambiar \textbf{:action} por \textbf{:durative\_action} y añadir la sección \textbf{:duration} con el cálculo de las funciones mencionadas anteriormente. Sin embargo, debido a la decisión de representar únicamente la distancia en una dirección, se modificaron las fórmulas:
+
+
+ \begin{itemize}
+    \item \textbf{MoverAscensorLento}: En este caso, la única peculiaridad es que se suma la distancia entre el punto de origen y destino con la distancia del 
+    punto de destino al punto de origen. Esto se entiende mejor con un ejemplo:
+
+    \begin{verbatim}
+    (=(distancia planta0 planta1) 1)
+    (=(distancia planta0 planta2) 2)
+
+    (=(distancia planta1 planta1) 2)
+    \end{verbatim}
+
+    Si queremos saber el valor en tiempo de ir de planta 0 a planta 2, el cálculo será el siguiente:
+
+    \[
+    t(p) = 4 + 8 \times (distancia(0, 2) + distancia(2, 0)) = 4 + 8 \times (2 + 0) = 20
+    \]
+
+    Para el caso contrario, de querer ir de planta 2 a planta 0:
+
+    \[
+    t(p) = 4 + 8 \times (distancia(2, 0) + distancia(0, 2)) = 4 + 8 \times (0 + 2) = 20
+    \]
+
+    \item \textbf{MoverAscensorRapido}: En este caso, deberemos identificar cuándo se sube y cuándo se baja, lo cual podemos calcular de la siguiente manera:
+    \[
+    \frac{distancia\_origen - distancia\_destino}{distancia\_origen + distancia\_destino}
+    \]
+    Esto nos devolverá \(1\) si es subir y \(-1\) si es bajar. Entonces, teniendo las fórmulas originales, podemos obtener la siguiente fórmula combinada:
+
+    Dado \(P_o = puerto origen\) y \(P_d = puerto destino\), la fórmula será:
+
+    \[
+    t(P_o,P_d) = \left(\frac{17 + \left(\frac{P_o - P_d}{P_o - P_d}\right)}{2}\right) + P_o + P_d
+    \]
+\end{itemize}
+
+\subsection{Definición del Problema}
+
+A partir de los fundamentos del problema del ejercicio 1, se realizaron algunas 
+modificaciones para adecuar el dominio al nuevo contexto. En primer lugar, se 
+eliminaron todas las declaraciones de \textbf{capacidad\_ascensor} y 
+\textbf{predecesor\_capacidad}.
+
+Posteriormente, se introdujeron definiciones para establecer las distancias entre las diferentes plantas. Por ejemplo:
+
+\begin{verbatim}
+(=(distancia planta0 planta1) 1)
+(=(distancia planta0 planta2) 2)
+(=(distancia planta0 planta3) 3)
+(=(distancia planta0 planta4) 4)
+(=(distancia planta0 planta5) 5)
+(=(distancia planta0 planta6) 6)
+...
+\end{verbatim}
+
+Además, se establecieron las capacidades de los ascensores de la siguiente manera:
+
+\begin{verbatim}
+(= (plazas_libres ascensor-rapido) 3)
+(= (plazas_libres ascensor-lento-b1) 2)
+(= (plazas_libres ascensor-lento-b2-1) 2)
+(= (plazas_libres ascensor-lento-b2-2) 2)
+(= (plazas_libres ascensor-lento-b3) 2)
+\end{verbatim}
+
+El resto del problema sigue siendo igual que en la versión 1. Además, se modificaron los problemas 2, 3, 4 y 5 del ejercicio 1 para adaptarlos al nuevo dominio,
+consiguiendo resolverlos todos de manera satisctoria.
+
+
+\section{Ejercicio 3}
+
+\subsection{Definición del dominio}
+Para el ejercicio 3 necesitamos definir una nueva variable que represente el consumo de un recurso, 
+de modo que dicho consumo sea inversamente proporcional al tiempo. Es decir, a menor tiempo, mayor será el consumo de recursos.
+
+Para ello se creo una nueva la variable, \texttt{energia\_total}, que registrará la energía consumida durante toda la ejecución. 
+Para calcular la energía consumida por cada acción, se utilizará la siguiente fórmula: \( \frac{50}{t} \)
+ . Este consumo de energía se aplicará únicamente a las acciones de mover el ascensor, y no a subir o bajar pasajeros.
+
+\subsection{Modificaciones realizadas en el dominio}
+Se han realizado varias modificaciones en el dominio del problema en comparación con el dominio del ejercicio 2. Estas modificaciones se dividen en dos categorías:
+\begin{itemize}
+\item Modificaciones para recursos no renovables.
+\item Modificaciones para recursos renovables.
+\end{itemize}
+
+\subsubsection{Recurso no renovable}
+En primer lugar, se añadió la nueva variable \texttt{energia\_total} en las funciones:
+\begin{verbatim}
+(:functions
+(plazas_libres ?a - ascensor)
+(distancia ?planta_actual - planta ?planta_destino - planta)
+(energia_total)
+)
+\end{verbatim}
+Además, se añadió un nuevo efecto a las acciones de mover el ascensor. Este nuevo efecto incrementa el valor de la variable \texttt{energia\_total} en función del tiempo que toma realizar la acción:
+
+\begin{verbatim}
+    :effect (and
+    (at end (en_planta ?a ?p_destino))
+    (at start (not (en_planta ?a ?p_origen)))
+    (at end (increase
+            (energia_total)
+            (/ 50 (+4
+                    (* 8
+                        (+ (distancia ?p_origen ?p_destino) (distancia ?p_destino ?p_origen)))
+                ))))
+)
+\end{verbatim}
+
+
+\subsubsection{Recurso renovable}
+En el caso del dominio de recursos renovables, se añadieron tres nuevas variables en el apartado de funciones:
+\begin{itemize}
+    \item \texttt{capacidad}: para indicar la capacidad de energía del edificio
+    \item \texttt{velocidad\_recarga}: para indicar cuánto tiempo se tarda en recuperar cada unidad de energía
+    \item \texttt{energia\_disponible}: inidca cuanta energía se tiene disponible en cada momento
+\end{itemize}
+
+\begin{verbatim}
+    (:functions
+    (plazas_libres ?a - ascensor)
+    (distancia ?planta_acutal - planta ?planta_destino - planta)
+    (energia_total)
+    (capacidad)
+    (velocidad_recarga)
+    (energia_disponible)
+)
+\end{verbatim}
+
+Además, se añadió un nuevo predicado denominado \texttt{estado} que puede tomar dos valores, \texttt{activo} o \texttt{cargando}, 
+lo que nos sirve para indicar cuándo se está recuperando la energía.
+\begin{verbatim}
+(:predicates
+    (en_planta ?x - (either pasajero ascensor) ?p - planta)
+    (en_ascensor ?p - pasajero ?a - ascensor)
+    (puede_ir_a ?a - ascensor ?p - planta)
+    (estado ?b - estado)
+)
+\end{verbatim}
+
+A nivel de acciones se realizaron varios cambios. En primer lugar, se añadió un control del estado para comprobar en las acciones de \texttt{MoverAscensorLento} 
+y \texttt{MoverAscensorRapido} se encuentra en estado \texttt{activo} durante toda la acción, es decir, para asegurarse de que no se está recagnado la energía. Además, también 
+se añadio una condición para validar que hay suficiente energia para completar todo la acción antes de realizar la tarea.
+\begin{verbatim}
+    :condition (and
+    (at start (puede_ir_a ?a ?p_destino))
+    (at start (not (= ?p_origen ?p_destino)))
+    (at start (en_planta ?a ?p_origen))
+    (at start (>= (energia_disponible)
+            (/50 (+4
+                    (* 8
+                        (+ (distancia ?p_origen ?p_destino) 
+                        (distancia ?p_destino ?p_origen)))
+                ))))
+    (over all (estado activo))
+)
+\end{verbatim}
+
+En el caso de los efectos de estas dos acción se añadio la resta de la energía consumida al realizar la acción sobre la variable \texttt{energia\_disponible}:
+\begin{verbatim}
+    (at start (decrease
+    (energia_disponible)
+    (/ 50 (+4
+            (* 8
+                (+ (distancia ?p_origen ?p_destino) (distancia ?p_destino ?p_origen)))
+        ))))
+\end{verbatim}
+
+Por último, se añadió el método \texttt{Recargar}, que permite la recuperación de energía disponible. Las consideraciones importantes son:
+\begin{itemize}
+    \item La duración es la diferencia entre la energía que tiene actualmente y la capacidad máxima, dividido por la velocidad de recarga.
+    \item Las condiciones para poder ejecutar esta acción son que la energía no esté al máximo.
+    \item Los efectos al principio de la acción son el cambio de estado a \texttt{recargando} y, cuando termina, 
+    se asigna a la energía el máximo de su capacidad y se vuelve a cambiar el estado a \texttt{activo}.
+\end{itemize}
+
+\begin{verbatim}
+(:durative-action Recargar
+        :parameters ()
+        :duration (= ?duration (/(-(capacidad) (energia_disponible))(velocidad_recarga)))
+        :condition (at start (and (> (capacidad) (energia_disponible)) (estado activo)))
+        :effect (and
+            (at start(and (estado recargando) (not (estado activo))))
+            (at end(assign (energia_disponible) (capacidad)))
+            (at end(and (estado activo) (not (estado recargando))))
+        )
+
+    )
+\end{verbatim}
+
+\subsection{Resultados obtenidos}
+Tras realizar las modificaciones necesarias para adaptar el problema 1 del ejercicio, se generaron los siguientes archivos:
+\begin{itemize}
+    \item \texttt{p1\_energy}: dominio no renovable con función de optimización \texttt{(:metric minimize (energia\_total))}
+    \item \texttt{p1\_time}: dominio no renovable con función de optimización \texttt{(:metric minimize (total-time))}
+    \item \texttt{p1\_renovable\_energy}: dominio renovable con función de optimización \texttt{(:metric minimize (energia\_total))}
+    \item \texttt{p1\_renovable\_time}: dominio renovable con función de optimización \texttt{(:metric minimize (total-time))}
+\end{itemize}
+
+Los dominios tienen los siguientes valores de variables:
+\begin{itemize}
+    \item \texttt{energia\_total}: 0 en ambos casos
+    \item \texttt{capacidad} (solo aplica a renovables): 20
+    \item \texttt{velocidad\_recarga} (solo aplica a renovables): 1
+    \item \texttt{energia\_rdisponible} (solo aplica a renovables): 1
+\end{itemize}
+
+\subsubsection{Comparación de resultados obtenidos}
+Para realizar las comparaciones se ejecutó cada uno de los diferentes escenarios cinco veces. Tras las ejecuciones, se obtuvieron los siguientes valores:
+\newpage
+\begin{table}[h!]
+    \centering
+    \caption{Resultados de las 5 ejecuciones}
+        \label{tab:data}
+    \begin{tabular}{cccccc}
+    \hline
+    \textbf{Ejecución} & \textbf{Renovable} & \textbf{Valor a Optimizar} & \textbf{Energía total} & \textbf{Tiempo total} \\
+    \hline
+    1 & Sí & Tiempo & 36 & 234 \\
+    1 & Sí & Energía & 30 & 404 \\
+    1 & No & Energía & 30 & 218 \\
+    1 & No & Tiempo & 54 & 119 \\
+    \hline
+    2 & Sí & Tiempo & 39 & 271 \\
+    2 & Sí & Energía & 24 & 375 \\
+    2 & No & Energía & 29 & 184 \\
+    2 & No & Tiempo & 45 & 116 \\
+    \hline
+    3 & Sí & Tiempo & 38 & 309 \\
+    3 & Sí & Energía & 30 & 376 \\
+    3 & No & Energía & 35 & 226 \\
+    3 & No & Tiempo & 47 & 116 \\
+    \hline
+    4 & Sí & Tiempo & 36 & 289 \\
+    4 & Sí & Energía & 29 & 470 \\
+    4 & No & Energía & 36 & 206 \\
+    4 & No & Tiempo & 57 & 123 \\
+    \hline
+    5 & Sí & Tiempo & 57 & 373 \\
+    5 & Sí & Energía & 32 & 366 \\
+    5 & No & Energía & 38 & 158 \\
+    5 & No & Tiempo & 41 & 136 \\
+    \hline
+    \end{tabular}
+    
+    \label{tabla:resultados}
+    \end{table}
+
+    Si sacamos el promedio obtenemos los siguientes datos:
+    \begin{table}[h!]
+        \centering
+        \caption{Media de los resultados}
+        \label{tab:data}
+        \begin{tabular}{cccccc}
+        \hline
+        \textbf{Renovable} & \textbf{Valor a Optimizar} & \textbf{Media Energía total} & \textbf{Media Tiempo total} \\
+        \hline
+        Sí & Tiempo & 41 & 295 \\
+        Sí & Energía & 29 & 396 \\
+        No & Energía & 33 & 198 \\
+        No & Tiempo & 49 & 122 \\
+        \hline
+        \end{tabular}
+        
+        \label{tabla:media}
+        \end{table}
+
+        Como se puede ver, el resultado obtenido es bastante esperable; hay una clara relación entre el objetivo y el valor obtenido. Para el objetivo de tiempo, obtenemos resultados que consumen más energía pero menos tiempo, y viceversa.
+
+\end{document}
+
+
